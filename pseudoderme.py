@@ -43,7 +43,7 @@ with mp_face_mesh.FaceMesh(static_image_mode=False,
                 # Obter a cor média da pele
                 skin_color = get_skin_color(frame, face_landmarks.landmark)
 
-                # Criar máscara branca
+                # Criar máscara branca do tamanho da face apenas
                 mask = np.zeros_like(frame, dtype=np.uint8)
 
                 # Obter os pontos da malha facial
@@ -54,31 +54,31 @@ with mp_face_mesh.FaceMesh(static_image_mode=False,
                 # Criar uma triangulação Delaunay
                 tri = scipy.spatial.Delaunay(points)
 
-                # Preencher a máscara com triângulos brancos
+                # Preencher a máscara com triângulos usando a cor média da pele
                 for simplex in tri.simplices:
                     triangle = points[simplex]
-                    cv2.fillPoly(mask, [triangle], (255, 255, 255))  # Máscara branca
+                    cv2.fillPoly(mask, [triangle], (int(skin_color[0]), int(skin_color[1]), int(skin_color[2])))  # Máscara com cor da pele
 
-                # Criar uma imagem da cor da pele
-                skin_color_image = np.zeros_like(frame, dtype=np.uint8)
-                skin_color_image[:] = (int(skin_color[0]), int(skin_color[1]), int(skin_color[2]))  # Preencher com a cor média da pele
+                # Criar uma máscara binária para o rosto
+                gray_mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+                _, binary_mask = cv2.threshold(gray_mask, 1, 255, cv2.THRESH_BINARY)
 
-                # Aplicar a máscara da cor da pele
-                final_skin_color = cv2.bitwise_and(skin_color_image, mask)
+                # Inverter a máscara para aplicar o fundo original
+                inverted_mask = cv2.bitwise_not(binary_mask)
 
-                # Combinar a máscara branca com a cor média da pele
-                mask_opacity = 1.0  # Opacidade total para a máscara
-                skin_color_opacity = 0.5  # Opacidade da cor média da pele
+                # Manter o fundo original fora da máscara
+                face_area = cv2.bitwise_and(frame, frame, mask=inverted_mask)
 
-                # Adicionar as duas camadas
-                final_frame = cv2.addWeighted(mask, mask_opacity, final_skin_color, skin_color_opacity, 0)
+                # Combinar o fundo original com o rosto filtrado
+                final_frame = cv2.add(face_area, mask)  # Combinando a máscara colorida e o fundo original
 
                 # Exibir o resultado final
                 cv2.imshow('Filtro Pseudoderme', final_frame)
 
         else:
-            # Exibir o quadro original se não houver rostos detectados
-            cv2.imshow('Filtro Pseudoderme', frame)
+            # Exibir uma tela de fundo preto ou branco quando não houver rosto detectado
+            standby_screen = np.zeros_like(frame)  # Fundo preto
+            cv2.imshow('Filtro Pseudoderme', standby_screen)  # Para branco use np.ones_like(frame) * 255
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
